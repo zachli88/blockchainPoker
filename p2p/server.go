@@ -12,23 +12,9 @@ type TCPTransport struct {
 
 }
 
-type Peer struct {
-	conn net.Conn
-}
-
-func (p *Peer) Send(b []byte) error {
-	_, err := p.conn.Write(b)
-	return err
-}
-
 type ServerConfig struct {
 	Version string
 	ListenAddr string
-}
-
-type Message struct {
-	Payload io.Reader
-	From net.Addr
 }
 
 type Server struct {
@@ -87,30 +73,6 @@ func (s *Server) acceptLoop() {
 		peer.Send([]byte(s.Version))
 		go s.handleConn(peer)
 	}
-}
-
-func (s *Server) handleConn(p *Peer) {
-	buf := make([]byte, 1024)
-	for {
-		n, err := p.conn.Read(buf)
-		if err != nil {
-			break
-		}
-		s.msgCh <- &Message{
-			From: p.conn.RemoteAddr(),
-			Payload: bytes.NewReader(buf[:n]),
-		}
-	}
-	s.delPeer <- p
-}
-
-func (s *Server) listen() error {
-	ln, err := net.Listen("tcp", s.ListenAddr)
-	if err != nil {
-		return err
-	}
-	s.listener = ln
-	return nil
 }
 
 func (s *Server) loop() {
