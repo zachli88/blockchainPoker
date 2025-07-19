@@ -1,18 +1,15 @@
 package p2p
 
 import (
-	"io"
+	"encoding/gob"
 	"net"
-	"fmt"
-)
 
-type Message struct {
-	Payload io.Reader
-	From net.Addr
-}
+	"github.com/sirupsen/logrus"
+)
 
 type Peer struct {
 	conn net.Conn
+	outbound bool
 }
 
 func (p *Peer) Send(b []byte) error {
@@ -21,16 +18,23 @@ func (p *Peer) Send(b []byte) error {
 }
 
 func (p *Peer) ReadLoop(msgch chan *Message) {
-	buf := make([]byte, 1024)
+	// buf := make([]byte, 1024)
 	for {
-		n, err := p.conn.Read(buf)
-		if err != nil {
+		// n, err := p.conn.Read(buf)
+		// if err != nil {
+		// 	break
+		// }
+
+		msg := new(Message)
+		if err := gob.NewDecoder(p.conn).Decode(msg); err != nil {
+			logrus.Errorf("decode message error: %s", err)
 			break
 		}
-		msgch <- &Message{
-			From: p.conn.RemoteAddr(),
-			Payload: bytes.NewReader(buf[:n]),
-		}
+		msgch <- msg
+		// msgch <- &Message{
+		// 	From: p.conn.RemoteAddr(),
+		// 	Payload: bytes.NewReader(buf[:n]),
+		// }
 	}
 
 	p.conn.Close()
@@ -39,20 +43,18 @@ func (p *Peer) ReadLoop(msgch chan *Message) {
 type TCPTransport struct {
 	listenAddr string
 	listener net.Listener
-	addPeer chan *Peer
-	delPeer chan *Peer
+	AddPeer chan *Peer
+	DelPeer chan *Peer
 }
 
-func NewTCPTransport(addr string, addPeer chan *Peer, delPeer chan *Peer) *TCPTransport {
+func NewTCPTransport(addr string) *TCPTransport {
 	return &TCPTransport{
 		listenAddr: addr,
-		addPeer: addPeer,
-		delPeer: delPeer,
 	}
 }
 
 func (t *TCPTransport) ListenAndAccept() error {
-	ln, err := net.Listen("tcp", t.ListenAddr)
+	ln, err := net.Listen("tcp", t.listenAddr)
 	if err != nil {
 		return err
 	}
@@ -66,10 +68,8 @@ func (t *TCPTransport) ListenAndAccept() error {
 		}
 		peer := &Peer{
 			conn: conn,
+			outbound: false,
 		}
-		t.addPeer <-peer
-
+		t.AddPeer <-peer
 	}
-
-	return fmt.Errorf("TCP transport stopped")
 }
