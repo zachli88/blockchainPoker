@@ -1,9 +1,7 @@
 package main
 
 import (
-	// "fmt"
-	// "github.com/zachli88/blockchainPoker/deck"
-	"log"
+	"time"
 
 	"github.com/zachli88/blockchainPoker/p2p"
 )
@@ -13,13 +11,15 @@ func main() {
 	playerB := makeServerAndStart("127.0.0.1:4000")
 	playerC := makeServerAndStart("127.0.0.1:5000")
 	playerD := makeServerAndStart("127.0.0.1:6000")
-	if err := playerC.Connect(playerA.ListenAddr); err != nil {
-		log.Fatal(err)
-	}
-
-	playerB.Connect(playerC.ListenAddr)
+	playerE := makeServerAndStart("127.0.0.1:7000")
+	time.Sleep(time.Second * 1)
+	playerB.Connect(playerA.ListenAddr)
+	time.Sleep(time.Second * 1)
+	playerC.Connect(playerB.ListenAddr)
+	time.Sleep(time.Second * 1)
 	playerD.Connect(playerC.ListenAddr)
-
+	time.Sleep(time.Second * 1)
+	playerE.Connect(playerA.ListenAddr)
 	select{}
 }
 

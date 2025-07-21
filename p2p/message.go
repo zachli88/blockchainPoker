@@ -1,7 +1,5 @@
 package p2p
 
-// "io"
-
 type Message struct {
 	Payload any
 	From string
@@ -18,6 +16,7 @@ type Handshake struct {
 	GameVariant GameVariant
 	Version string
 	GameStatus GameStatus
+	ListenAddr string
 }
 
 type MessagePeerList struct {
