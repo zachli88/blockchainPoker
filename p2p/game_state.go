@@ -10,6 +10,7 @@ import (
 
 type Player struct {
 	Status GameStatus
+	listenAddr string
 }
 
 type GameState struct {
@@ -19,6 +20,7 @@ type GameState struct {
 	gameStatus GameStatus
 	playersWaitingForCards int32
 	playersLock sync.RWMutex
+	playerList []*Player
 	players map[string]*Player
 	deckReceivedLock sync.RWMutex
 	deckReceived map[string]bool
@@ -61,8 +63,10 @@ func (g *GameState) CheckStatus() {
 
 func (g *GameState) GetPlayerWithStatus(status GameStatus) []string {
 	players := []string{}
-	for addr, _ := range g.players {
-		players = append(players, addr)
+	for addr, player := range g.players {
+		if player.Status == status {
+			players = append(players, addr)
+		}
 	}
 	return players
 }
@@ -74,27 +78,28 @@ func (g *GameState) SetDeckReceived(from string) {
 }
 
 func (g *GameState) ShuffleAndEncrypt(from string, deck [][]byte) error {
-	g.SetStatus(GameStatusReceivingCards)
-	g.SetDeckReceived(from)
-	players := g.GetPlayerWithStatus(GameStatusReceivingCards)
-
-	g.deckReceivedLock.RLock()
-	for _, addr := range players {
-		_, ok := g.deckReceived[addr] 
-		if !ok {
-			return nil
-		}
-	}
-	g.deckReceivedLock.RUnlock()
-	g.SetStatus(GameStatusPreFlop)
-	g.SendToPlayersWithStatus(MessageEncDeck{Deck: [][]byte{}}, GameStatusReceivingCards)
+	dealToPlayer := g.playerList[0]
+	g.SendToPlayer(dealToPlayer.listenAddr, MessageEncDeck{Deck: [][]byte{}})
+	g.SetStatus(GameStatusShuffleAndDeal)
 	return nil
 }
 
 func (g *GameState) InitiateShuffleAndDeal() {
-	g.SetStatus(GameStatusReceivingCards)
-	// g.broadcastch <- MessageEncDeck{Deck: [][]byte{}}
-	g.SendToPlayersWithStatus(MessageEncDeck{Deck:[][]byte{}}, GameStatusWaitingForCards)
+	dealToPlayer := g.playerList[0]
+	
+	g.SendToPlayer(dealToPlayer.listenAddr, MessageEncDeck{Deck: [][]byte{}})
+	g.SetStatus(GameStatusShuffleAndDeal)
+}
+
+func (g *GameState) SendToPlayer(addr string, payload any) {
+	g.broadcastch <- BroadcastTo {
+		To: []string{addr},
+		Payload: payload,
+	}
+	logrus.WithFields(logrus.Fields{
+		"payload": payload,
+		"player": addr,
+	}).Info("sending payload to player")
 }
 
 func (g *GameState) SendToPlayersWithStatus(payload any, status GameStatus) {
@@ -135,7 +140,11 @@ func (g *GameState) AddPlayer(addr string, status GameStatus) {
 	if status == GameStatusWaitingForCards {
 		g.AddPlayerWaitingForCards()
 	}
-	g.players[addr] = new(Player)
+	player := &Player{
+		listenAddr: addr,
+	}
+	g.playerList = append(g.playerList, player)
+	g.players[addr] = player
 
 	g.SetPlayerStatus(addr, status)
 
