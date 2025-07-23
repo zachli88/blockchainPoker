@@ -96,12 +96,6 @@ func (s *Server) sendPeerList(p *Peer) error {
 		}
 	}
 
-	// fmt.Printf("%s: my peerlist %+v\n", s.ListenAddr, peerList.Peers)
-
-	// for _, peer := range s.peers {
-	// 	peerList.Peers = append(peerList.Peers, peer.listenAddr)
-	// }
-
 	if len(peerList.Peers) == 0 {
 		return nil
 	}
